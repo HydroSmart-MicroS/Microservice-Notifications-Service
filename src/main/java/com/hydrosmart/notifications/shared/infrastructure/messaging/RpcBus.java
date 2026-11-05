@@ -109,7 +109,7 @@ public final class RpcBus implements AutoCloseable {
    ch.exchangeDeclarePassive("hydrosmart.rpc");ch.exchangeDeclarePassive("hydrosmart.events");ch.confirmSelect();
    var required=new ArrayList<String>();required.add("rpc."+name);
    if(name.equals("reports"))required.add("reports.jobs");
-   if(name.equals("notifications")){required.add("notifications.alerts");if(!System.getenv().getOrDefault("BREVO_API_KEY","").isBlank()&&!System.getenv().getOrDefault("BREVO_SENDER_EMAIL","mateox341@gmail.com").isBlank())required.add("notifications.email");}
+   if(name.equals("notifications")){required.add("notifications.alerts");if(!System.getenv().getOrDefault("BREVO_API_KEY","").isBlank()&&!System.getenv().getOrDefault("BREVO_SENDER_EMAIL","mateox341@gmail.com").isBlank())required.add("notifications.email");if(!System.getenv().getOrDefault("VAPID_PRIVATE_KEY","").isBlank())required.add("notifications.push");}
    var states=new TreeMap<String,String>();boolean ready=true;
    for(String queue:required){var own=consumers.get(queue);boolean active=own!=null&&own.isOpen()&&ch.queueDeclarePassive(queue).getConsumerCount()>0;states.put(queue,active?"UP":"DOWN");ready&=active;}
    return Map.of("ready",ready,"connection","UP","consumers",states,"publisherChannel","READY");

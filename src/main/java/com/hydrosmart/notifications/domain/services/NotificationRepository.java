@@ -11,6 +11,7 @@ public interface NotificationRepository {
  Map<String,Object> email(UUID id);
  void sent(UUID id,String providerId);
  void failed(UUID id,String reason);
+ void expired(UUID id);
  void retry(String user);
 }
 

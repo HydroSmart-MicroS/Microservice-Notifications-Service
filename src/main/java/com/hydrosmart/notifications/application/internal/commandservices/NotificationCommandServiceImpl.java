@@ -16,7 +16,10 @@ public class NotificationCommandServiceImpl implements NotificationService {
  }
  private void sendLocked(UUID id){
   var row=repository.email(id);if(row.isEmpty()||"sent".equals(row.get("status")))return;
-  try{String email=recipients.email(row.get("user_id").toString());if(email==null)return;String provider=emails.send(email,row.get("title").toString(),row.get("body").toString(),id.toString(),row.get("kind").toString());repository.sent(id,provider);}
+  try{String email=recipients.email(row.get("user_id").toString());if(email==null)return;
+   @SuppressWarnings("unchecked") var data=(Map<String,Object>)row.getOrDefault("data",Map.of());
+   if("password_reset".equals(row.get("kind"))&&java.time.Instant.parse(data.get("expiresAt").toString()).isBefore(java.time.Instant.now())){repository.expired(id);return;}
+   String provider=emails.send(email,row.get("title").toString(),row.get("body").toString(),id.toString(),row.get("kind").toString(),data);repository.sent(id,provider);}
   catch(Exception error){repository.failed(id,error.getMessage());throw new IllegalStateException("Email retry required");}
  }
  public Map<String,Object> list(String user,UUID before){var value=new HashMap<>(repository.list(user,before));value.put("emailConfigured",emails.configured());return value;}

@@ -7,6 +7,9 @@ public final class NotificationEmailTemplate {
  public record Content(String html,String text){}
  private record Theme(String label,String color,String background,String hint,String action,String path){}
  public static Content render(String kind,String title,String body,String publicUrl){
+  return render(kind,title,body,publicUrl,java.util.Map.of());
+ }
+ public static Content render(String kind,String title,String body,String publicUrl,java.util.Map<String,Object> data){
   var base=URI.create(publicUrl);
   if((!"http".equalsIgnoreCase(base.getScheme())&&!"https".equalsIgnoreCase(base.getScheme()))||base.getHost()==null||base.getRawUserInfo()!=null||base.getRawQuery()!=null||base.getRawFragment()!=null)
    throw new IllegalArgumentException("PUBLIC_APP_URL debe ser una dirección HTTP/HTTPS válida de HydroSmart.");
@@ -14,13 +17,20 @@ public final class NotificationEmailTemplate {
   var theme=switch(kind){
    case "high_consumption"->new Theme("CONSUMO INUSUAL","#8a560a","#fff5df","Revisa qué medidor concentró el consumo y compáralo con tus hábitos recientes.","Revisar mis alertas","/alertas");
    case "possible_leak"->new Theme("POSIBLE FUGA","#a13d2c","#fff0eb","Revisa las llaves y conexiones de la unidad. El flujo continuo es una señal para revisar, no una confirmación de fuga.","Revisar posible fuga","/alertas");
-   case "goal_80"->new Theme("PRESUPUESTO MENSUAL","#8a560a","#fff5df","Revisa el avance de tu presupuesto y planifica tu consumo para el resto del mes.","Ver mi meta mensual","/alertas");
+   case "goal_80"->new Theme("META MENSUAL","#8a560a","#fff5df","Has consumido el 80% de los litros de tu meta. Revisa también el costo estimado de tu consumo.","Ver mi meta mensual","/alertas");
+   case "meter_offline"->new Theme("MEDIDOR SIN CONEXIÓN","#8a560a","#fff5df","Revisa la conexión del medidor o reanuda sus lecturas simuladas. Su historial se conserva.","Ver mis medidores","/dispositivos");
+   case "password_reset"->new Theme("SEGURIDAD DE TU CUENTA","#245e79","#edf5fa","Este enlace vence en 30 minutos. Nunca compartas tu contraseña ni el enlace de recuperación.","Elegir nueva contraseña","/login");
    case "water_payment_pending"->new Theme("PLAN Y PAGOS","#8a560a","#fff5df","El estado puede haber cambiado desde este aviso. Compruébalo en Historial de pagos antes de pagar.","Ir a Plan y pagos","/pagos");
    case "payment"->new Theme("PAGO CONFIRMADO","#126957","#eaf5ef","Puedes consultar este pago y el estado de tu cuenta desde Plan y pagos.","Ver mis pagos","/pagos");
    case "report"->new Theme("REPORTE DISPONIBLE","#245e79","#edf5fa","Abre tu historial de consumo para consultar y descargar el reporte disponible.","Ver Historial","/historial");
    default->new Theme("TU CUENTA","#126957","#eaf5ef","Encontrarás los detalles de este aviso en tu bandeja de notificaciones.","Ver notificaciones","/notificaciones");
   };
   String actionUrl=origin+"/app"+theme.path(),preferencesUrl=origin+"/app/notificaciones";
+  if("password_reset".equals(kind)){
+   var link=URI.create(String.valueOf(data.get("actionUrl")));
+   if(!java.util.Objects.equals(link.getScheme(),base.getScheme())||!java.util.Objects.equals(link.getAuthority(),base.getAuthority())||link.getUserInfo()!=null||!link.getPath().startsWith("/api/auth/reset-password/"))throw new IllegalArgumentException("Invalid reset link");
+   actionUrl=link.toString();
+  }
   String preview=body.length()>150?body.substring(0,147)+"…":body;
   String html="""
 <!doctype html>
