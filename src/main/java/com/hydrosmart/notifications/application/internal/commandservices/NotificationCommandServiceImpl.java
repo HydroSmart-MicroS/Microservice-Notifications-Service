@@ -15,8 +15,15 @@ public class NotificationCommandServiceImpl implements NotificationService {
   guard.read(()->sendLocked(id));
  }
  private void sendLocked(UUID id){
-  var row=repository.email(id);if(row.isEmpty()||"sent".equals(row.get("status")))return;
-  try{String email=recipients.email(row.get("user_id").toString());if(email==null)return;
+  var row=repository.email(id);if(row.isEmpty()||Set.of("sent","skipped").contains(row.get("status")))return;
+  try{
+   String user=row.get("user_id").toString(),kind=row.get("kind").toString();
+   if(!"password_reset".equals(kind)){
+    var preferences=repository.preferences(user);
+    String typePreference=switch(kind){case "high_consumption"->"highConsumptionEnabled";case "possible_leak"->"leakAlertsEnabled";case "goal_80"->"goalEnabled";case "report"->"summariesEnabled";default->null;};
+    if(!Boolean.TRUE.equals(preferences.get("emailEnabled"))||(typePreference!=null&&!Boolean.TRUE.equals(preferences.get(typePreference)))){repository.skipped(id);return;}
+   }
+   String email=recipients.email(user);if(email==null)return;
    @SuppressWarnings("unchecked") var data=(Map<String,Object>)row.getOrDefault("data",Map.of());
    if("password_reset".equals(row.get("kind"))&&java.time.Instant.parse(data.get("expiresAt").toString()).isBefore(java.time.Instant.now())){repository.expired(id);return;}
    String provider=emails.send(email,row.get("title").toString(),row.get("body").toString(),id.toString(),row.get("kind").toString(),data);repository.sent(id,provider);}
