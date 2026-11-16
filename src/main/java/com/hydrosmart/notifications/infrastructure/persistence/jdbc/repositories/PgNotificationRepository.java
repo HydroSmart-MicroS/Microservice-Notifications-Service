@@ -70,6 +70,7 @@ public class PgNotificationRepository implements NotificationRepository {
  public Map<String,Object> email(UUID id){var result=jdbc.queryForList("SELECT * FROM notifications WHERE id=? AND channel='email'",id).stream().findFirst().orElse(Map.of());if(!result.isEmpty())metadata(result);return result;}
  public void sent(UUID id,String providerId){jdbc.update("UPDATE notifications SET status='sent',sent_at=now(),provider_message_id=?,last_error=NULL,data=CASE WHEN kind='password_reset' THEN '{}'::jsonb ELSE data END WHERE id=? AND channel='email'",providerId,id);}
  public void failed(UUID id,String reason){jdbc.update("UPDATE notifications SET attempts=attempts+1,last_error=?,status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'pending' END WHERE id=? AND channel='email'",reason,id);}
+ public void skipped(UUID id){jdbc.update("UPDATE notifications SET status='skipped',last_error=NULL WHERE id=? AND channel='email' AND status IN('pending','failed')",id);}
  public void expired(UUID id){jdbc.update("UPDATE notifications SET status='failed',data='{}'::jsonb,last_error='El enlace venció. Solicita uno nuevo desde Iniciar sesión.' WHERE id=? AND kind='password_reset'",id);}
  public void retry(String user){tx.executeWithoutResult(status->{for(var row:jdbc.queryForList("UPDATE notifications SET status='pending',attempts=0,last_error=NULL WHERE user_id=? AND channel='email' AND status='failed' AND kind!='password_reset' RETURNING id",user))enqueue((UUID)row.get("id"),user);});}
 }
