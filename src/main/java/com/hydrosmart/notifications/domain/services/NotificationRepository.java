@@ -12,6 +12,7 @@ public interface NotificationRepository {
  void sent(UUID id,String providerId);
  void failed(UUID id,String reason);
  void expired(UUID id);
+ void skipped(UUID id);
  void retry(String user);
 }
 
