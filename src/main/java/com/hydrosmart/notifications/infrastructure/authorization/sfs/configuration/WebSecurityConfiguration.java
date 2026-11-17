@@ -9,7 +9,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class WebSecurityConfiguration {
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http,@org.springframework.beans.factory.annotation.Value("${INTERNAL_SERVICE_TOKEN}")String token) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http,@org.springframework.beans.factory.annotation.Value("${INTERNAL_SERVICE_TOKEN}")String token, com.hydrosmart.notifications.infrastructure.authorization.AccountLifecycle lifecycle) throws Exception {
         return http
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -19,7 +19,7 @@ public class WebSecurityConfiguration {
                 .requestMatchers("/internal/v1/**").hasRole("SERVICE")
                 .anyRequest().authenticated())
             .addFilterBefore(new com.hydrosmart.notifications.infrastructure.authorization.sfs.pipeline.InternalServiceAuthenticationFilter(token),org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
-            .addFilterBefore(new com.hydrosmart.notifications.infrastructure.authorization.AccountLifecycle.Filter(),org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
+            .addFilterAfter(new com.hydrosmart.notifications.infrastructure.authorization.AccountLifecycle.Filter(lifecycle),org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
             .addFilterBefore(new com.hydrosmart.notifications.shared.infrastructure.messaging.RequestTrace.Filter(),org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
             .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))
             .build();
