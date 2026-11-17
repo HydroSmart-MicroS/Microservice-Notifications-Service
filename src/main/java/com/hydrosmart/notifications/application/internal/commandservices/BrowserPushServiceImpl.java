@@ -11,7 +11,9 @@ public class BrowserPushServiceImpl implements BrowserPushService {
  public void subscribe(String user,String endpoint,String p256dh,String auth){if(!gateway.configured())throw new IllegalArgumentException("Los avisos push todavía no están configurados.");gateway.validate(endpoint,p256dh,auth);repository.subscribe(user,endpoint,p256dh,auth);}
  public void unsubscribe(String user,String endpoint){if(endpoint==null||endpoint.length()>4096)throw new IllegalArgumentException("Suscripción inválida.");repository.unsubscribe(user,endpoint);}
  public void recordDecision(String user,String alert,String decision){repository.recordDecision(user,alert,decision);}
- public void send(UUID id){guard.read(()->{
+ public void send(UUID id){
+  var retry = new java.util.concurrent.atomic.AtomicBoolean();
+  guard.delivery(id,()->{
   var notice=repository.notice(id);if(notice.isEmpty()||!"pending".equals(notice.get("status")))return;
   String user=notice.get("user_id").toString();if(recipients.email(user)==null)return;
   @SuppressWarnings("unchecked") var data=(Map<String,Object>)notice.getOrDefault("data",Map.of());
@@ -25,8 +27,10 @@ public class BrowserPushServiceImpl implements BrowserPushService {
     else transientFailure=true;
    }catch(Exception error){transientFailure=true;}
   }
-  if(transientFailure){repository.failed(id);repository.fallback(id);throw new IllegalStateException("Push retry required");}
+  if(transientFailure){repository.failed(id);repository.fallback(id);retry.set(true);return;}
   repository.finish(id,success);if(!success)repository.fallback(id);
- });}
+  });
+  if(retry.get())throw new IllegalStateException("Push retry required");
+ }
  private static String clip(String value,int length){return value.length()>length?value.substring(0,length-1)+"…":value;}
 }
