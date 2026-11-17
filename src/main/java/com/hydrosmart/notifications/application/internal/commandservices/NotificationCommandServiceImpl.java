@@ -12,22 +12,24 @@ public class NotificationCommandServiceImpl implements NotificationService {
  public void receive(Notice notice){guard.read(()->{if(recipients.email(notice.user())!=null)repository.receive(notice);});}
  public boolean emailConfigured(){return emails.configured();}
  public void send(UUID id){
-  guard.read(()->sendLocked(id));
+  var retry = new java.util.concurrent.atomic.AtomicBoolean();
+  guard.delivery(id,()->retry.set(sendLocked(id)));
+  if(retry.get())throw new IllegalStateException("Email retry required");
  }
- private void sendLocked(UUID id){
-  var row=repository.email(id);if(row.isEmpty()||Set.of("sent","skipped").contains(row.get("status")))return;
+ private boolean sendLocked(UUID id){
+  var row=repository.email(id);if(row.isEmpty()||Set.of("sent","skipped").contains(row.get("status")))return false;
   try{
    String user=row.get("user_id").toString(),kind=row.get("kind").toString();
    if(!"password_reset".equals(kind)){
     var preferences=repository.preferences(user);
     String typePreference=switch(kind){case "high_consumption"->"highConsumptionEnabled";case "possible_leak"->"leakAlertsEnabled";case "goal_80"->"goalEnabled";case "report"->"summariesEnabled";default->null;};
-    if(!Boolean.TRUE.equals(preferences.get("emailEnabled"))||(typePreference!=null&&!Boolean.TRUE.equals(preferences.get(typePreference)))){repository.skipped(id);return;}
+    if(!Boolean.TRUE.equals(preferences.get("emailEnabled"))||(typePreference!=null&&!Boolean.TRUE.equals(preferences.get(typePreference)))){repository.skipped(id);return false;}
    }
-   String email=recipients.email(user);if(email==null)return;
+   String email=recipients.email(user);if(email==null)return false;
    @SuppressWarnings("unchecked") var data=(Map<String,Object>)row.getOrDefault("data",Map.of());
-   if("password_reset".equals(row.get("kind"))&&java.time.Instant.parse(data.get("expiresAt").toString()).isBefore(java.time.Instant.now())){repository.expired(id);return;}
-   String provider=emails.send(email,row.get("title").toString(),row.get("body").toString(),id.toString(),row.get("kind").toString(),data);repository.sent(id,provider);}
-  catch(Exception error){repository.failed(id,error.getMessage());throw new IllegalStateException("Email retry required");}
+   if("password_reset".equals(row.get("kind"))&&java.time.Instant.parse(data.get("expiresAt").toString()).isBefore(java.time.Instant.now())){repository.expired(id);return false;}
+   String provider=emails.send(email,row.get("title").toString(),row.get("body").toString(),id.toString(),row.get("kind").toString(),data);repository.sent(id,provider);return false;}
+  catch(Exception error){repository.failed(id,error.getMessage());return true;}
  }
  public Map<String,Object> list(String user,UUID before){var value=new HashMap<>(repository.list(user,before));value.put("emailConfigured",emails.configured());return value;}
  public Map<String,Object> preferences(String user){return repository.preferences(user);}
