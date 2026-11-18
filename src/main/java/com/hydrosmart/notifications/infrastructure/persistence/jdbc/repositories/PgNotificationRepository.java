@@ -34,17 +34,13 @@ public class PgNotificationRepository implements NotificationRepository {
    if(("high_consumption".equals(notice.kind())&&!Boolean.TRUE.equals(p.get("highConsumptionEnabled")))||
       ("possible_leak".equals(notice.kind())&&!Boolean.TRUE.equals(p.get("leakAlertsEnabled")))||
       ("goal_80".equals(notice.kind())&&!Boolean.TRUE.equals(p.get("goalEnabled"))))return;
-   for(String channel:List.of("in_app","email","push")){
-    if(channel.equals("push")&&!Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM push_tokens WHERE user_id=? AND revoked_at IS NULL AND p256dh IS NOT NULL)",Boolean.class,notice.user())))continue;
+   for(String channel:List.of("in_app","email")){
     if(channel.equals("in_app")&&!Boolean.TRUE.equals(p.get("inAppEnabled")))continue;
     if(channel.equals("email")&&(!Boolean.TRUE.equals(p.get("emailEnabled"))||("report".equals(notice.kind())&&!Boolean.TRUE.equals(p.get("summariesEnabled")))))continue;
     UUID id=UUID.randomUUID();
     jdbc.update("INSERT INTO notifications(id,user_id,source_event_id,channel,title,body,kind,status,sent_at,data) VALUES(?,?,?,?,?,?,?, ?,CASE WHEN ?='in_app' THEN now() ELSE NULL END,?::jsonb)",id,notice.user(),notice.source(),channel,notice.title(),notice.body(),notice.kind(),channel.equals("in_app")?"sent":"pending",channel,RpcBus.JSON.writeValueAsString(notice.data()));
     if(channel.equals("email"))enqueue(id,notice.user());
-    if(channel.equals("push")){
-     UUID event=UUID.randomUUID();var payload=Map.of("event_id",event.toString(),"event_type","notifications.push.requested.v1","producer","notifications","schema_version",1,"occurred_at",Instant.now().toString(),"data",Map.of("notification_id",id.toString(),"user_id",notice.user()));
-     jdbc.update("INSERT INTO outbox_events(event_id,event_type,aggregate_id,payload) VALUES(?,'notifications.push.requested.v1',?,?::jsonb)",event,notice.user(),RpcBus.JSON.writeValueAsString(payload));
-    }
+
    }
   });
  }
